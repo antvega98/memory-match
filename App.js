@@ -1,31 +1,69 @@
-import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View, Button } from "react-native";
+import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { useReducer } from "react";
 
-const SYMBOLS = ["a", "b", "c"];
+import Card from "./Card.js";
+
+const SYMBOLS = ["a", "b", "c", "d", "e", "f"];
 
 function reducer(state, action) {
-  // Actions a user can take:
-  // Reveal a card
-  // Reset guess
-  // Reset game
   switch (action.type) {
     case "make-a-guess":
-      return { ...state, numberOfGuess: state.numberOfGuess + 1 };
+      state.revealed[action.index] = true;
+
+      // if user has never guessed
+      if (state.previousGuess == null) {
+        return {
+          ...state,
+          previousGuess: action.symbol,
+        };
+      }
+
+      // if guess does not equal previous guess
+      if (state.previousGuess !== action.symbol) {
+        return {
+          ...state,
+          freezeBoard: true,
+          tryAgain: true,
+        };
+      }
+
+      // prev guess equals current guess
+      const gameOver =
+        state.revealed.filter(Boolean).length === state.revealed.length;
+      return {
+        ...state,
+        previousGuess: null,
+        prevRevealedState: [...state.revealed],
+        gameOver,
+      };
+
     case "reset-guess":
-      return state;
+      return {
+        ...state,
+        revealed: [...state.prevRevealedState],
+        previousGuess: null,
+        freezeBoard: false,
+        tryAgain: false,
+      };
     case "reset-game":
-      return createNewState;
+      return createNewState();
   }
   return state;
 }
+
 function createNewState() {
   const board = [...SYMBOLS, ...SYMBOLS];
+  const revealed = new Array(board.length).fill(false);
   shuffle(board);
   return {
     board,
-    revealed: [],
+    revealed,
     numberOfGuess: 0,
+    previousGuess: null,
+    prevRevealedState: [...revealed],
+    freezeBoard: false,
+    gameOver: false,
+    tryAgain: false,
   };
 }
 
@@ -35,23 +73,53 @@ function shuffle(arr) {
     swap(arr, randomIndex, i);
   }
 }
+
 function swap(arr, randomIndex, i) {
   const randomValue = arr[randomIndex];
   arr[randomIndex] = arr[i];
   arr[i] = randomValue;
 }
+
 export default function App() {
   const [state, dispatch] = useReducer(reducer, undefined, createNewState);
 
   return (
     <View style={styles.container}>
-      <Text>{JSON.stringify(state, null, 2)}</Text>
-      <Button
-        title="Guess"
-        onPress={() => {
-          dispatch({ type: "make-a-guess" });
-        }}
-      ></Button>
+      <View style={styles.board}>
+        {state.board.map((val, index) => {
+          return (
+            <Card
+              key={index}
+              dispatch={dispatch}
+              symbol={val}
+              revealed={state.revealed[index]}
+              index={index}
+              freezeBoard={state.freezeBoard}
+            />
+          );
+        })}
+      </View>
+
+      {state.tryAgain && (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => {
+            dispatch({ type: "reset-guess" });
+          }}
+        >
+          <Text style={styles.buttonText}>Try again</Text>
+        </TouchableOpacity>
+      )}
+      {state.gameOver && (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => {
+            dispatch({ type: "reset-game" });
+          }}
+        >
+          <Text style={styles.buttonText}>Reset Game</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -59,8 +127,24 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
+  },
+  board: {
+    gap: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  button: {
+    position: "absolute",
+    bottom: 50,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "blue",
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 20,
   },
 });
